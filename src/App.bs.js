@@ -3,6 +3,8 @@
 import * as Cell from "./Cell.bs.js";
 import * as Curry from "rescript/lib/es6/curry.js";
 import * as React from "react";
+import * as Caml_array from "rescript/lib/es6/caml_array.js";
+import * as Caml_string from "rescript/lib/es6/caml_string.js";
 
 import './App.css'
 ;
@@ -16,12 +18,32 @@ var initialState = {
   win: false
 };
 
+function isAlphaChar(ch) {
+  var code = ch.charCodeAt(0);
+  if (code >= 65.0 && code <= 90.0) {
+    return true;
+  } else if (code >= 97.0) {
+    return code <= 122.0;
+  } else {
+    return false;
+  }
+}
+
 function reducer(state, action) {
-  if (action._0 === "Enter") {
+  var key = action._0;
+  if (key === "Enter") {
     return {
-            guesses: state.guesses,
+            guesses: state.guesses.concat([]),
             row: state.row + 1 | 0,
             col: state.col,
+            win: state.win
+          };
+  } else if (isAlphaChar(key)) {
+    Caml_array.set(Caml_array.get(state.guesses, state.row), state.col, Caml_string.get(key, 0));
+    return {
+            guesses: state.guesses,
+            row: state.row,
+            col: Math.min(5, state.col + 1 | 0),
             win: state.win
           };
   } else {
@@ -30,8 +52,10 @@ function reducer(state, action) {
 }
 
 function App(Props) {
+  var containerEl = React.useRef(null);
   var match = React.useReducer(reducer, initialState);
   var dispatch = match[1];
+  console.log(match[0]);
   var handleKeyPress = React.useCallback((function (evt) {
           var key = evt.key;
           return Curry._1(dispatch, /* KeyPress */{
@@ -39,16 +63,21 @@ function App(Props) {
                     });
         }), [dispatch]);
   return React.createElement("div", {
+              ref: containerEl,
               onKeyPress: handleKeyPress
             }, React.createElement(Cell.make, {
                   character: undefined
                 }));
 }
 
+var numCharactersPerWord = 5;
+
 var make = App;
 
 export {
+  numCharactersPerWord ,
   initialState ,
+  isAlphaChar ,
   reducer ,
   make ,
   
