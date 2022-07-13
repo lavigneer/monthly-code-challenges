@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, BufWriter, Write, Read};
+use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, RwLock};
 use std::thread::{self};
@@ -44,11 +44,13 @@ impl Server {
 
     fn on_sender_client_connect(&self, stream: TcpStream) {
         let mut id = self.id.write().unwrap();
-        
+
         let mut reader = BufReader::new(stream);
         let lines = reader.by_ref().lines();
         for line in lines {
-            self.send_to_all_clients(line.unwrap());
+            let mut data = line.unwrap();
+            data.push('\n');
+            self.send_to_all_clients(data);
         }
 
         self.sender_connections.write().unwrap().insert(*id, reader);
@@ -56,10 +58,30 @@ impl Server {
     }
 
     fn send_to_all_clients(&self, data: String) {
-        let data = data.as_bytes();
+        println!("Message: {}", data);
         let client_connections = self.receiver_connections.read().unwrap();
+
+        println!(
+            "Num Connections: {}",
+            self.receiver_connections.read().unwrap().len()
+        );
+
         for id in client_connections.keys() {
-           self.receiver_connections.write().unwrap().get_mut(id).unwrap().write_all(data).unwrap();
+            let c = self
+                .receiver_connections
+                .read()
+                .unwrap()
+                .get(id)
+                .unwrap()
+                .get_ref()
+                .peer_addr()
+                .unwrap();
+            println!("{}, {}", c, data);
+
+            let mut connections = self.receiver_connections.write().unwrap();
+            let connection = connections.get_mut(id).unwrap();
+            connection.write_all(data.as_bytes())?;
+            connection.flush();
         }
     }
 
@@ -80,6 +102,7 @@ impl Server {
     }
 
     fn on_receiver_client_connect(&self, stream: TcpStream) {
+        println!("Client connected: {}", stream.peer_addr().unwrap());
         let mut id = self.id.write().unwrap();
         let writer = BufWriter::new(stream);
         self.receiver_connections
