@@ -50,7 +50,10 @@ impl Server {
         for line in lines {
             let mut data = line.unwrap();
             data.push('\n');
-            self.send_to_all_clients(data);
+            let me = self.clone();
+            thread::spawn(move || {
+                me.send_to_all_clients(data);
+            });
         }
 
         self.sender_connections.write().unwrap().insert(*id, reader);
@@ -58,30 +61,12 @@ impl Server {
     }
 
     fn send_to_all_clients(&self, data: String) {
-        println!("Message: {}", data);
-        let client_connections = self.receiver_connections.read().unwrap();
+        let mut client_connections = self.receiver_connections.write().unwrap();
 
-        println!(
-            "Num Connections: {}",
-            self.receiver_connections.read().unwrap().len()
-        );
+        for connection in client_connections.values_mut() {
+            connection.write_all(data.as_bytes()).unwrap();
+            connection.flush().unwrap();
 
-        for id in client_connections.keys() {
-            let c = self
-                .receiver_connections
-                .read()
-                .unwrap()
-                .get(id)
-                .unwrap()
-                .get_ref()
-                .peer_addr()
-                .unwrap();
-            println!("{}, {}", c, data);
-
-            let mut connections = self.receiver_connections.write().unwrap();
-            let connection = connections.get_mut(id).unwrap();
-            connection.write_all(data.as_bytes())?;
-            connection.flush();
         }
     }
 
